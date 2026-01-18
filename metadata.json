@@ -1,0 +1,7 @@
+{
+  "name": "SYNCHRON",
+  "description": "Gemini 2.5 Flash Native Audio",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
