@@ -176,23 +176,16 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden font-sans w-full selection:bg-zinc-800">
-      {/* Dynamic Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(30,30,35,1)_0%,_rgba(0,0,0,1)_100%)] pointer-events-none opacity-60"></div>
       
-      {/* Header - Fixed & Cinematic */}
       <header className="absolute top-0 left-0 z-30 flex items-center justify-between p-6 md:p-10 w-full pointer-events-none">
         <div className="flex items-center space-x-4 pointer-events-auto">
-          <div className="relative flex items-center justify-center">
-            <div className={`w-2 h-2 rounded-full transition-all duration-700 ${isActive ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.9)] scale-110' : 'bg-zinc-800'}`}></div>
-            {isActive && <div className="absolute w-2 h-2 rounded-full bg-red-500 animate-ping opacity-40"></div>}
-          </div>
           <h1 className="heading-font text-[10px] md:text-xs font-bold tracking-[0.4em] uppercase opacity-70 group cursor-default">
-            Synchron <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-500 ml-2 font-light">Acoustic Intelligence</span>
+            Synchron
           </h1>
         </div>
       </header>
 
-      {/* Main Interaction Layer */}
       <main className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4">
         <div 
           onClick={startSession}
@@ -202,63 +195,38 @@ const App: React.FC = () => {
             border-[0.5px] bg-black/20 backdrop-blur-xl z-20 group
           `}
         >
-          {/* Internal Glow */}
           <div className={`
             absolute inset-0 rounded-full transition-opacity duration-1000 orb-glow
             ${isActive ? 'opacity-100' : 'opacity-0'}
           `}></div>
           
-          {/* Interaction Icon */}
           <div className="flex items-center justify-center pointer-events-none z-30">
-             <div className={`transition-all duration-700 transform ${isActive ? 'scale-110 text-white' : 'scale-100 text-zinc-500 group-hover:text-zinc-300'} ${isSyncing ? 'animate-pulse' : ''}`}>
+             <div className={`transition-all duration-700 transform ${isActive ? 'scale-110 text-white' : 'scale-100 text-zinc-500 group-hover:text-zinc-300'}`}>
                 <i className={`fa-solid fa-microphone ${isActive ? 'text-4xl' : 'text-3xl'}`}></i>
              </div>
           </div>
-
-          {/* Minimal Label when inactive */}
-          {!isActive && !isSyncing && (
-             <div className="absolute bottom-12 sm:bottom-16 text-[8px] tracking-[0.3em] uppercase opacity-40 group-hover:opacity-80 transition-opacity font-medium">
-               Connect
-             </div>
-          )}
         </div>
       </main>
 
-      {/* Narrative/Transcription Layer */}
       <div className="absolute bottom-0 left-0 z-20 w-full px-6 md:px-12 pb-16 md:pb-20 flex flex-col items-center pointer-events-none">
           <div 
             ref={transcriptRef}
             className="w-full max-w-2xl h-32 md:h-40 overflow-hidden flex flex-col justify-end text-center space-y-3 subtitle-gradient"
           >
-            {/* Context Memory */}
             {history.slice(-1).map((h, i) => (
               <p key={i} className="text-[10px] md:text-xs leading-relaxed tracking-wider text-zinc-400 opacity-40 italic transition-all duration-1000 px-4">
                 {h.text}
               </p>
             ))}
             
-            {/* Active Dialogue */}
             <div className="min-h-[2.5rem] flex items-center justify-center">
-              {(transcription.user || transcription.ai) ? (
+              {(transcription.user || transcription.ai) && (
                 <p className="text-base md:text-lg lg:text-xl leading-snug text-white font-medium tracking-wide drop-shadow-lg px-4 transition-all duration-300 transform translate-y-0 opacity-100">
                   {transcription.ai || transcription.user}
                 </p>
-              ) : (
-                isActive && !transcription.user && !transcription.ai && (
-                  <div className="flex space-x-1 opacity-20">
-                    <div className="w-1 h-1 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                    <div className="w-1 h-1 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                    <div className="w-1 h-1 bg-white rounded-full animate-bounce"></div>
-                  </div>
-                )
               )}
             </div>
           </div>
-      </div>
-
-      {/* Global Accents */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 opacity-20 pointer-events-none hidden md:block">
-        <div className="w-32 h-[1px] bg-gradient-to-r from-transparent via-zinc-100 to-transparent"></div>
       </div>
     </div>
   );
