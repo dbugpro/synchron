@@ -7,7 +7,6 @@ const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-12-2025';
 
 const App: React.FC = () => {
   const [isActive, setIsActive] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [transcription, setTranscription] = useState<{user: string, ai: string}>({ user: '', ai: '' });
   const [history, setHistory] = useState<{text: string, role: 'user' | 'ai'}[]>([]);
   
@@ -26,11 +25,11 @@ const App: React.FC = () => {
 
   const stopSession = useCallback(() => {
     setIsActive(false);
-    setIsSyncing(false);
     if (liveSession.current) {
       liveSession.current.close();
       liveSession.current = null;
     }
+    // Clean up all playing sources immediately
     sources.current.forEach(s => {
       try { s.stop(); } catch (e) {}
     });
@@ -47,8 +46,7 @@ const App: React.FC = () => {
     }
 
     try {
-      setIsSyncing(true);
-      
+      // Lazy-initialize audio contexts only after user interaction
       if (!audioContexts.current) {
         audioContexts.current = {
           input: new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 }),
@@ -56,10 +54,11 @@ const App: React.FC = () => {
         };
       }
 
-      if (audioContexts.current.input.state === 'suspended') {
+      // Ensure contexts are running before proceeding
+      if (audioContexts.current.input.state !== 'running') {
         await audioContexts.current.input.resume();
       }
-      if (audioContexts.current.output.state === 'suspended') {
+      if (audioContexts.current.output.state !== 'running') {
         await audioContexts.current.output.resume();
       }
 
@@ -71,7 +70,6 @@ const App: React.FC = () => {
         callbacks: {
           onopen: () => {
             setIsActive(true);
-            setIsSyncing(false);
             const source = audioContexts.current!.input.createMediaStreamSource(stream);
             const scriptProcessor = audioContexts.current!.input.createScriptProcessor(4096, 1, 1);
             
@@ -80,7 +78,7 @@ const App: React.FC = () => {
               const l = inputData.length;
               const int16 = new Int16Array(l);
               for (let i = 0; i < l; i++) {
-                int16[i] = inputData[i] * 32768;
+                int16[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
               }
               const pcmBlob: Blob = {
                 data: encode(new Uint8Array(int16.buffer)),
@@ -88,7 +86,7 @@ const App: React.FC = () => {
               };
               
               sessionPromise.then((session) => {
-                session.sendRealtimeInput({ media: pcmBlob });
+                if (session) session.sendRealtimeInput({ media: pcmBlob });
               });
             };
 
@@ -147,12 +145,11 @@ const App: React.FC = () => {
             }
           },
           onerror: (e) => {
-            console.error('Session error:', e);
+            console.error('Synchron Session Error:', e);
             stopSession();
           },
           onclose: () => {
             setIsActive(false);
-            setIsSyncing(false);
           },
         },
         config: {
@@ -162,72 +159,84 @@ const App: React.FC = () => {
           },
           inputAudioTranscription: {},
           outputAudioTranscription: {},
-          systemInstruction: 'You are SYNCHRON, a highly advanced acoustic intelligence. You speak with a mature, sophisticated, and articulate British male accent. Your tone is calm, professional, and wise. You interact via high-quality real-time voice. Avoid filler words. Be concise and natural, like a learned companion.',
+          systemInstruction: 'You are SYNCHRON. Speak with a mature, sophisticated British male accent. Be concise, professional, and insightful. Avoid filler words. Do not use any placeholder dots, symbols, or ellipsis in your text output.',
         },
       });
 
       liveSession.current = await sessionPromise;
 
     } catch (err) {
-      console.error('Failed to start sync:', err);
-      setIsSyncing(false);
+      console.error('Failed to initialize Synchron voice:', err);
+      setIsActive(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden font-sans w-full selection:bg-zinc-800">
+    <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden font-sans w-full">
+      {/* Visual Depth Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(30,30,35,1)_0%,_rgba(0,0,0,1)_100%)] pointer-events-none opacity-60"></div>
       
+      {/* Header Landmark */}
       <header className="absolute top-0 left-0 z-30 flex items-center justify-between p-6 md:p-10 w-full pointer-events-none">
-        <div className="flex items-center space-x-4 pointer-events-auto">
-          <h1 className="heading-font text-[10px] md:text-xs font-bold tracking-[0.4em] uppercase opacity-70 group cursor-default">
+        <div className="flex items-center space-x-3 pointer-events-auto">
+          {/* Status Indicator Dot (Red Light) */}
+          <div 
+            className={`w-1.5 h-1.5 rounded-full transition-all duration-700 ${
+              isActive 
+                ? 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] opacity-100' 
+                : 'bg-zinc-800 opacity-20'
+            }`}
+            aria-hidden="true"
+          ></div>
+          <h1 className="heading-font text-[10px] md:text-xs font-bold tracking-[0.4em] uppercase opacity-40">
             Synchron
           </h1>
         </div>
       </header>
 
+      {/* Main Landmark - Central Interaction */}
       <main className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4">
-        <div 
+        <button 
           onClick={startSession}
+          aria-label={isActive ? "Disconnect from Synchron" : "Connect to Synchron"}
           className={`
-            relative w-48 h-48 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-full flex items-center justify-center cursor-pointer transition-all duration-700
-            ${isActive ? 'pulse-active border-zinc-100/30' : 'border-zinc-800 hover:border-zinc-600 hover:scale-[1.02]'}
-            border-[0.5px] bg-black/20 backdrop-blur-xl z-20 group
+            relative w-48 h-48 sm:w-64 sm:h-64 lg:w-72 lg:h-72 rounded-full flex items-center justify-center cursor-pointer transition-all duration-1000
+            ${isActive ? 'pulse-active border-zinc-100/20' : 'border-zinc-900 hover:border-zinc-700'}
+            border-[0.5px] bg-black/10 backdrop-blur-3xl z-20 outline-none focus-visible:ring-2 focus-visible:ring-zinc-400
           `}
         >
           <div className={`
             absolute inset-0 rounded-full transition-opacity duration-1000 orb-glow
             ${isActive ? 'opacity-100' : 'opacity-0'}
           `}></div>
-          
-          <div className="flex items-center justify-center pointer-events-none z-30">
-             <div className={`transition-all duration-700 transform ${isActive ? 'scale-110 text-white' : 'scale-100 text-zinc-500 group-hover:text-zinc-300'}`}>
-                <i className={`fa-solid fa-microphone ${isActive ? 'text-4xl' : 'text-3xl'}`}></i>
-             </div>
-          </div>
-        </div>
-      </main>
+        </button>
 
-      <div className="absolute bottom-0 left-0 z-20 w-full px-6 md:px-12 pb-16 md:pb-20 flex flex-col items-center pointer-events-none">
+        {/* Accessibility-compliant transcription area - Positioned lower down */}
+        <div className="absolute bottom-0 left-0 z-20 w-full px-6 md:px-12 pb-8 md:pb-12 flex flex-col items-center pointer-events-none">
           <div 
             ref={transcriptRef}
-            className="w-full max-w-2xl h-32 md:h-40 overflow-hidden flex flex-col justify-end text-center space-y-3 subtitle-gradient"
+            className="w-full max-w-2xl h-32 md:h-40 overflow-hidden flex flex-col justify-end text-center space-y-4 subtitle-gradient"
           >
             {history.slice(-1).map((h, i) => (
-              <p key={i} className="text-[10px] md:text-xs leading-relaxed tracking-wider text-zinc-400 opacity-40 italic transition-all duration-1000 px-4">
+              <p key={i} className="text-[10px] md:text-xs leading-relaxed tracking-widest text-zinc-500 opacity-30 italic px-4">
                 {h.text}
               </p>
             ))}
             
-            <div className="min-h-[2.5rem] flex items-center justify-center">
+            <div 
+              className="min-h-[3rem] flex items-center justify-center" 
+              aria-live="polite"
+              aria-relevant="text"
+            >
               {(transcription.user || transcription.ai) && (
-                <p className="text-base md:text-lg lg:text-xl leading-snug text-white font-medium tracking-wide drop-shadow-lg px-4 transition-all duration-300 transform translate-y-0 opacity-100">
+                <p className="text-base md:text-lg lg:text-xl leading-snug text-white font-light tracking-wide drop-shadow-2xl px-4 transition-all duration-500">
                   {transcription.ai || transcription.user}
                 </p>
               )}
             </div>
           </div>
-      </div>
+        </div>
+      </main>
     </div>
   );
 };
