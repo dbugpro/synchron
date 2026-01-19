@@ -29,7 +29,6 @@ const App: React.FC = () => {
       liveSession.current.close();
       liveSession.current = null;
     }
-    // Clean up all playing sources immediately
     sources.current.forEach(s => {
       try { s.stop(); } catch (e) {}
     });
@@ -46,7 +45,6 @@ const App: React.FC = () => {
     }
 
     try {
-      // Lazy-initialize audio contexts only after user interaction
       if (!audioContexts.current) {
         audioContexts.current = {
           input: new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 }),
@@ -54,7 +52,6 @@ const App: React.FC = () => {
         };
       }
 
-      // Ensure contexts are running before proceeding
       if (audioContexts.current.input.state !== 'running') {
         await audioContexts.current.input.resume();
       }
@@ -78,7 +75,9 @@ const App: React.FC = () => {
               const l = inputData.length;
               const int16 = new Int16Array(l);
               for (let i = 0; i < l; i++) {
-                int16[i] = Math.max(-1, Math.min(1, inputData[i])) * 32767;
+                // Defensive clamping and scaling to prevent input distortion
+                const s = Math.max(-1, Math.min(1, inputData[i]));
+                int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
               }
               const pcmBlob: Blob = {
                 data: encode(new Uint8Array(int16.buffer)),
@@ -99,7 +98,12 @@ const App: React.FC = () => {
               for (const part of parts) {
                 if (part.inlineData?.data) {
                   const outCtx = audioContexts.current!.output;
-                  nextStartTime.current = Math.max(nextStartTime.current, outCtx.currentTime);
+                  // Use a small scheduling buffer to avoid distortion gaps
+                  const now = outCtx.currentTime;
+                  if (nextStartTime.current < now) {
+                    nextStartTime.current = now + 0.05;
+                  }
+                  
                   const audioBuffer = await decodeAudioData(decode(part.inlineData.data), outCtx, 24000, 1);
                   const source = outCtx.createBufferSource();
                   source.buffer = audioBuffer;
@@ -173,13 +177,10 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[100dvh] bg-black text-white relative overflow-hidden font-sans w-full">
-      {/* Visual Depth Background */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(30,30,35,1)_0%,_rgba(0,0,0,1)_100%)] pointer-events-none opacity-60"></div>
       
-      {/* Header Landmark */}
       <header className="absolute top-0 left-0 z-30 flex items-center justify-between p-6 md:p-10 w-full pointer-events-none">
         <div className="flex items-center space-x-3 pointer-events-auto">
-          {/* Status Indicator Dot (Red Light) */}
           <div 
             className={`w-1.5 h-1.5 rounded-full transition-all duration-700 ${
               isActive 
@@ -194,7 +195,6 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      {/* Main Landmark - Central Interaction */}
       <main className="absolute inset-0 z-10 flex flex-col items-center justify-center p-4">
         <button 
           onClick={startSession}
@@ -211,25 +211,24 @@ const App: React.FC = () => {
           `}></div>
         </button>
 
-        {/* Accessibility-compliant transcription area - Positioned lower down */}
         <div className="absolute bottom-0 left-0 z-20 w-full px-6 md:px-12 pb-8 md:pb-12 flex flex-col items-center pointer-events-none">
           <div 
             ref={transcriptRef}
             className="w-full max-w-2xl h-32 md:h-40 overflow-hidden flex flex-col justify-end text-center space-y-4 subtitle-gradient"
           >
             {history.slice(-1).map((h, i) => (
-              <p key={i} className="text-[10px] md:text-xs leading-relaxed tracking-widest text-zinc-500 opacity-30 italic px-4">
+              <p key={i} className="text-[10px] md:text-xs leading-relaxed tracking-widest text-zinc-600 opacity-20 italic px-4">
                 {h.text}
               </p>
             ))}
             
             <div 
-              className="min-h-[3rem] flex items-center justify-center" 
+              className="min-h-[2rem] flex items-center justify-center" 
               aria-live="polite"
               aria-relevant="text"
             >
               {(transcription.user || transcription.ai) && (
-                <p className="text-base md:text-lg lg:text-xl leading-snug text-white font-light tracking-wide drop-shadow-2xl px-4 transition-all duration-500">
+                <p className="text-xs md:text-sm leading-relaxed text-zinc-400 font-light tracking-widest px-4 transition-all duration-500 uppercase">
                   {transcription.ai || transcription.user}
                 </p>
               )}
